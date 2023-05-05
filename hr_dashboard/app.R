@@ -31,16 +31,12 @@ ui <- fluidPage(
     ),
     mainPanel(
       tabsetPanel(
-        type = "tabs",
-        tabPanel(
-          "Employees",
-          tableOutput("employee_table"),
-          plotOutput("salary_by_department_plot")
-        ),
-        tabPanel(
-          "Salaries",
-          plotOutput("salary_histogram")
-        )
+        tabPanel("Employees", 
+                 tableOutput("employee_table")),
+        tabPanel("Department Summary",
+                 plotOutput("pie_chart")),
+        tabPanel("Salary Summary",
+                 plotOutput("bar_chart"))
       )
     )
   )
@@ -49,13 +45,20 @@ ui <- fluidPage(
 # Define server
 server <- function(input, output) {
   
+  # Convert department_id in employee table to department_name
+  employee_data <- reactive({
+    employee %>%
+      left_join(department, by = "department_id") %>%
+      mutate(department_name = if_else(is.na(department_name), "All", department_name))
+  })
+  
   # Filter employee data based on selected department
   department_data <- reactive({
     if (input$department == "All") {
-      employee
+      employee_data()
     } else {
-      employee %>%
-        filter(department_id == department[department$department_name == input$department, "department_id"])
+      employee_data() %>%
+        filter(department_name == input$department)
     }
   })
   
@@ -64,24 +67,27 @@ server <- function(input, output) {
     department_data()
   })
   
-  # Output pie plot of total salary by department
-  output$salary_by_department_plot <- renderPlot({
-    department_data() %>%
-      group_by(department_id) %>%
-      summarize(total_salary = sum(salary)) %>%
-      inner_join(department, by = "department_id") %>%
-      ggplot(aes(x = department_name, y = total_salary, fill = department_name)) +
-      geom_bar(stat = "identity") +
-      ggtitle("Total Salary by Department") +
-      theme(plot.title = element_text(size = 16, face = "bold", hjust = 0.5))
+  # Output pie chart of total salary by department
+  output$pie_chart <- renderPlot({
+    employee_data() %>%
+      group_by(department_name) %>%
+      summarise(total_salary = sum(salary)) %>%
+      ggplot(aes(x = "", y = total_salary, fill = department_name)) +
+      geom_bar(stat = "identity", width = 1) +
+      coord_polar("y", start=0) +
+      labs(title = "Salary Summary", fill = "Department") +
+      theme_void() +
+      theme(legend.position = "bottom")
   })
   
-  # Output histogram of employee salaries
-  output$salary_histogram <- renderPlot({
-    ggplot(department_data(), aes(x = salary)) +
-      geom_histogram(binwidth = 10000) +
-      ggtitle("Employee Salary Distribution") +
-      theme(plot.title = element_text(size = 16, face = "bold", hjust = 0.5))
+  # Output bar chart of employee salaries in selected department
+  output$bar_chart <- renderPlot({
+    department_data() %>%
+      ggplot(aes(x = name, y = salary, fill = department_name)) +
+      geom_col() +
+      labs(title = "Employee Salaries by Department", x = "Employee Name", y = "Salary", fill = "Department") +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+      theme(legend.position = "right")
   })
 }
 
