@@ -30,11 +30,7 @@ ui <- fluidPage(
                   selected = "All"),
       selectInput(inputId = "gender",
                   label = "Select gender:",
-                  choices = c("All", "Male", "Female"),
-                  selected = "All"),
-      selectInput(inputId = "gender_bar",
-                  label = "Select gender:",
-                  choices = c("All", "Male", "Female"),
+                  choices = c("All", unique(employee$gender)),
                   selected = "All")
     ),
     mainPanel(
@@ -61,58 +57,49 @@ server <- function(input, output) {
   })
   
   # Filter employee data based on selected department and gender
-  filtered_data <- reactive({
-    temp_data <- employee_data()
-    
-    if (input$department != "All") {
-      temp_data <- temp_data %>%
-        filter(department_name == input$department)
-    }
-    
-    if (input$gender != "All") {
-      temp_data <- temp_data %>%
+  department_data <- reactive({
+    if (input$department == "All" & input$gender == "All") {
+      employee_data()
+    } else if (input$department == "All") {
+      employee_data() %>%
         filter(gender == input$gender)
+    } else if (input$gender == "All") {
+      employee_data() %>%
+        filter(department_name == input$department)
+    } else {
+      employee_data() %>%
+        filter(department_name == input$department, gender == input$gender)
     }
-    
-    if (input$gender_bar != "All") {
-      temp_data <- temp_data %>%
-        filter(gender == input$gender_bar)
-    }
-    
-    temp_data
   })
   
-  # Output table of employees in selected department and gender
+  # Output table of employees in selected department
   output$employee_table <- renderTable({
-    filtered_data()
+    department_data()
   })
   
-  # Output bar chart of employee salaries in selected department and gender
-  output$salary_chart <- renderPlot({
-    filtered_data() %>%
-      ggplot(aes(x = name, y = salary, fill = gender)) +
-      geom_col() +
-      labs(title = "Employee Salaries by Gender",
-           x = "Employee Name",
-           y = "Salary",
-           fill = "Gender") +
-      theme_minimal()
-  })
-  
-  # Output pie chart of employee counts by department
+  # Output pie chart of total salary by department
   output$pie_chart <- renderPlot({
     employee_data() %>%
       group_by(department_name) %>%
-      summarise(count = n()) %>%
-      ggplot(aes(x = "", y = count, fill = department_name)) +
+      summarise(total_salary = sum(salary)) %>%
+      ggplot(aes(x = "", y = total_salary, fill = department_name)) +
       geom_bar(stat = "identity", width = 1) +
-      coord_polar("y", start = 0) +
-      labs(title = "Employee Counts by Department",
-           fill = "Department") +
+      coord_polar("y", start=0) +
+      labs(title = "Salary Summary", fill = "Department") +
       theme_void() +
       theme(legend.position = "bottom")
+  })
+  
+  # Output bar chart of employee salaries in selected department
+  output$bar_chart <- renderPlot({
+    department_data() %>%
+      ggplot(aes(x = name, y = salary, fill = department_name)) +
+      geom_col() +
+      labs(title = "Employee Salaries by Department", x = "Employee Name", y = "Salary", fill = "Department") +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+      theme(legend.position = "right")
   })
 }
 
 # Run the app
-shinyApp(ui, server)
+shinyApp(ui = ui, server = server)
